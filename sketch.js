@@ -1,21 +1,22 @@
 // 爱/AI/LOVE 打字机与描边效果
 // AI为红色实心，其他为描边
-// 右侧记录文字变化历史
+// 右侧使用网格布局记录整词变化历史
 let loveWords = ['AI', '愛', 'LOVE'];
 let currentWordIndex = 0;
 let cycleTimer = 0;
 let transitionAmount = 0;
 let isTransitioning = false;
 let nextWordIndex = 0;
-let fontSize = 100;
+let fontSize = 80;
 let matisseFont;
 let typewriterPos = 0; // 打字机效果的位置
 let typewriterSpeed = 3; // 打字机效果的速度
 
-// 历史记录数组
-let history = [];
-let maxHistoryEntries = 15; // 最大历史记录数
-let lastRecordedWord = ""; // 上次记录的词，用于避免重复记录
+// 网格布局参数
+let gridCols = 10; // 网格列数
+let gridRows = 10; // 网格行数
+let gridCells = []; // 网格单元格数组
+let cellSize = 0; // 单元格尺寸，将在setup中计算
 
 // 为每个词设置不同的显示时间
 const displayTimes = [0.8, 0.05, 0.05]; // AI停留0.8秒，其他词停留0.05秒
@@ -31,10 +32,15 @@ function preload() {
 }
 
 function setup() {
-  // 创建正方形画布，左右分成两部分
-  let canvasSize = min(windowWidth, windowHeight) * 0.8;
-  createCanvas(canvasSize * 2, canvasSize);
+  // 创建一个更大的画布，包含左中右三个部分
+  let canvasHeight = min(windowWidth, windowHeight) * 0.8;
+  let canvasWidth = canvasHeight * 2; // 左右两部分宽度相等
+  
+  createCanvas(canvasWidth, canvasHeight);
   textAlign(CENTER, CENTER);
+  
+  // 计算网格单元格尺寸
+  cellSize = (canvasHeight / gridRows);
   
   // 尝试应用加载的字体
   if (matisseFont) {
@@ -45,6 +51,21 @@ function setup() {
   }
   
   textSize(fontSize);
+  
+  // 初始化网格单元格
+  initializeGrid();
+}
+
+// 初始化网格
+function initializeGrid() {
+  gridCells = [];
+  for (let i = 0; i < gridRows * gridCols; i++) {
+    gridCells.push({
+      word: "",
+      isAI: false,
+      opacity: 0 // 初始透明度为0
+    });
+  }
 }
 
 function draw() {
@@ -65,8 +86,8 @@ function draw() {
     // 重置打字机位置
     typewriterPos = 0;
     
-    // 在切换时记录当前词到历史记录
-    recordWordToHistory(loveWords[currentWordIndex]);
+    // 在切换时添加当前词到网格
+    addWordToGrid(loveWords[currentWordIndex]);
   }
   
   // 处理过渡 - 加快过渡速度
@@ -106,8 +127,8 @@ function draw() {
   
   pop();
   
-  // 在右侧画布绘制历史记录
-  drawHistory();
+  // 在右侧画布绘制网格
+  drawGrid();
   
   // 显示字体状态信息和调试信息（左下角）
   push();
@@ -116,69 +137,90 @@ function draw() {
   textAlign(LEFT, BOTTOM);
   text(`Current: ${loveWords[currentWordIndex]} | Next: ${loveWords[nextWordIndex]} | Time: ${cycleTimer.toFixed(1)}s`, 10, height - 10);
   pop();
+  
+  // 淡化网格单元格
+  fadeGridCells();
 }
 
-// 记录单词到历史记录
-function recordWordToHistory(word) {
-  // 避免连续记录相同的单词
-  if (word !== lastRecordedWord) {
-    // 创建一个新的历史记录项
-    let historyItem = {
-      word: word,
-      timestamp: new Date().toLocaleTimeString(),
-      isAI: word === 'AI'
-    };
-    
-    // 添加到历史记录数组
-    history.push(historyItem);
-    
-    // 如果历史记录超过最大数量，移除最早的记录
-    if (history.length > maxHistoryEntries) {
-      history.shift();
+// 添加单词到网格
+function addWordToGrid(word) {
+  // 找一个随机位置
+  let randomCell = floor(random(gridRows * gridCols));
+  
+  // 确保该位置是空的或者已经很淡了
+  let attempts = 0;
+  while (gridCells[randomCell].opacity > 0.3 && attempts < 10) {
+    randomCell = floor(random(gridRows * gridCols));
+    attempts++;
+  }
+  
+  // 设置单词
+  gridCells[randomCell] = {
+    word: word,
+    isAI: word === 'AI',
+    opacity: 1.0 // 完全不透明
+  };
+}
+
+// 淡化网格单元格
+function fadeGridCells() {
+  for (let i = 0; i < gridCells.length; i++) {
+    if (gridCells[i].opacity > 0) {
+      gridCells[i].opacity -= 0.002; // 逐渐淡化
     }
-    
-    // 更新上次记录的词
-    lastRecordedWord = word;
   }
 }
 
-// 绘制历史记录
-function drawHistory() {
+// 绘制网格
+function drawGrid() {
   push();
   
-  // 设置文本对齐方式和大小
-  textAlign(LEFT, TOP);
-  textSize(16);
+  // 计算网格起始位置（在右侧）
+  let gridStartX = width/2;
+  let gridStartY = 0;
   
-  // 设置起始位置
-  let x = width/2 + 20;
-  let y = 20;
+  // 绘制网格线
+  stroke(230);
+  strokeWeight(1);
+  for (let i = 0; i <= gridCols; i++) {
+    line(gridStartX + i * cellSize, gridStartY, gridStartX + i * cellSize, gridStartY + height);
+  }
+  for (let i = 0; i <= gridRows; i++) {
+    line(gridStartX, gridStartY + i * cellSize, gridStartX + gridCols * cellSize, gridStartY + i * cellSize);
+  }
   
-  // 绘制标题
-  fill(0);
-  textStyle(BOLD);
-  text("HISTORY", x, y);
-  y += 30;
-  
-  // 绘制每个历史记录项
-  textStyle(NORMAL);
-  for (let i = 0; i < history.length; i++) {
-    let item = history[i];
-    
-    // 设置文字样式
-    if (item.isAI) {
-      // AI使用红色实心
-      fill(255, 0, 0);
-      noStroke();
-    } else {
-      // 其他词使用灰色
-      fill(100);
-      noStroke();
+  // 绘制每个单元格的内容
+  for (let row = 0; row < gridRows; row++) {
+    for (let col = 0; col < gridCols; col++) {
+      let index = row * gridCols + col;
+      let cell = gridCells[index];
+      
+      if (cell.word && cell.opacity > 0) {
+        // 计算单元格中心位置
+        let cellX = gridStartX + col * cellSize + cellSize/2;
+        let cellY = gridStartY + row * cellSize + cellSize/2;
+        
+        // 根据单词长度调整文字大小
+        let wordLength = cell.word.length;
+        let cellFontSize = wordLength <= 2 ? cellSize * 0.6 : cellSize * 0.4;
+        textSize(cellFontSize);
+        
+        // 设置字符样式
+        if (cell.isAI) {
+          // AI为红色实心
+          fill(255, 0, 0, 255 * cell.opacity);
+          noStroke();
+        } else {
+          // 其他词为黑色描边
+          noFill();
+          stroke(0, 0, 0, 255 * cell.opacity);
+          strokeWeight(1);
+        }
+        
+        // 绘制单词
+        text(cell.word, cellX, cellY);
+      }
     }
-    
-    // 绘制历史记录项
-    text(`${item.timestamp}: ${item.word}`, x, y);
-    y += 24; // 行间距
   }
   
   pop();
@@ -235,6 +277,10 @@ function drawWord(word, x, y, alpha) {
 }
 
 function windowResized() {
-  let canvasSize = min(windowWidth, windowHeight) * 0.8;
-  resizeCanvas(canvasSize * 2, canvasSize);
+  let canvasHeight = min(windowWidth, windowHeight) * 0.8;
+  let canvasWidth = canvasHeight * 2; 
+  resizeCanvas(canvasWidth, canvasHeight);
+  
+  // 重新计算单元格尺寸
+  cellSize = (canvasHeight / gridRows);
 }
